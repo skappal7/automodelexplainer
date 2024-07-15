@@ -2,8 +2,9 @@ import streamlit as st
 import pickle
 import pandas as pd
 import numpy as np
-from sklearn.metrics import accuracy_score, mean_squared_error
+from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 import shap
+import matplotlib.pyplot as plt
 
 class CustomUnpickler(pickle.Unpickler):
     def find_class(self, module, name):
@@ -34,22 +35,27 @@ def evaluate_model(model, X, y):
             score = accuracy_score(y, y_pred)
             return f"Accuracy: {score:.4f}"
         else:
-            score = mean_squared_error(y, y_pred, squared=False)
-            return f"Root Mean Squared Error: {score:.4f}"
+            mse = mean_squared_error(y, y_pred)
+            r2 = r2_score(y, y_pred)
+            return f"Mean Squared Error: {mse:.4f}, R-squared: {r2:.4f}"
     except Exception as e:
         return f"Error in evaluation: {str(e)}"
 
 def explain_model(model, X):
     try:
+        # Try TreeExplainer first
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(X)
         if isinstance(shap_values, list):
             shap_values = shap_values[1]  # For binary classification
-        fig, ax = plt.subplots()
-        shap.summary_plot(shap_values, X, plot_type="bar", show=False)
-        st.pyplot(fig)
-    except Exception as e:
-        st.write(f"Error in SHAP explanation: {str(e)}")
+    except:
+        # If TreeExplainer fails, use KernelExplainer
+        explainer = shap.KernelExplainer(model.predict, X)
+        shap_values = explainer.shap_values(X)
+    
+    fig, ax = plt.subplots()
+    shap.summary_plot(shap_values, X, plot_type="bar", show=False)
+    st.pyplot(fig)
 
 st.title("Model Performance Analyzer")
 
