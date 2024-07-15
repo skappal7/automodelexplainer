@@ -7,30 +7,36 @@ import shap
 import lime
 import lime.lime_tabular
 from shapash.explainer.smart_explainer import SmartExplainer
-import io
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
 def load_model(file):
     try:
-        model = pickle.load(file)
-        return model
-    except (ValueError, TypeError) as e:
-        if "missing_go_to_left" in str(e):
-            # If the error is due to the missing field, try to load with compatibility
-            file.seek(0)  # Reset file pointer to the beginning
-            model = pickle.load(file)
+        model_dict = pickle.load(file)
+        
+        if isinstance(model_dict, (RandomForestClassifier, RandomForestRegressor)):
+            return model_dict
+        
+        if isinstance(model_dict, dict) and 'estimators_' in model_dict:
+            if 'classes_' in model_dict:
+                new_model = RandomForestClassifier()
+            else:
+                new_model = RandomForestRegressor()
             
-            if isinstance(model, (DecisionTreeClassifier, RandomForestClassifier, GradientBoostingClassifier)):
-                for estimator in (model.estimators_ if hasattr(model, 'estimators_') else [model]):
-                    if hasattr(estimator, 'tree_'):
-                        tree = estimator.tree_
-                        if not hasattr(tree, 'missing_go_to_left'):
-                            tree.missing_go_to_left = None
+            new_model.n_estimators = len(model_dict['estimators_'])
+            new_model.estimators_ = model_dict['estimators_']
+            if 'classes_' in model_dict:
+                new_model.classes_ = model_dict['classes_']
+            new_model.n_features_in_ = model_dict['n_features_in_']
             
-            return model
+            for param in ['n_outputs_', 'n_classes_', 'max_features_']:
+                if param in model_dict:
+                    setattr(new_model, param, model_dict[param])
+            
+            return new_model
         else:
-            raise
+            raise ValueError("Unrecognized model format")
+    except Exception as e:
+        raise ValueError(f"Error loading model: {str(e)}")
 
 def load_data(file):
     return pd.read_csv(file)
@@ -88,7 +94,6 @@ if uploaded_model is not None and uploaded_data is not None:
         if suitable_explainers:
             explainer_choice = st.selectbox("Choose an explainer", suitable_explainers)
             
-            # Assume all columns except the last one are features
             X = data.iloc[:, :-1]
             y = data.iloc[:, -1]
             
@@ -101,6 +106,6 @@ if uploaded_model is not None and uploaded_data is not None:
             st.write("No suitable explainers found for this model type.")
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
-        st.error("Stack Trace:", exc_info=True)
+        st.exception(e)
 else:
     st.write("Please upload both a model file (.pkl) and a test data file (.csv) to proceed.")
