@@ -1,51 +1,66 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.preprocessing import LabelEncoder, Binarizer
+import streamlit as st
 import pickle
+import pandas as pd
+import numpy as np
+from sklearn.base import is_classifier, is_regressor
+import shap
+import lime
+import lime.lime_tabular
+from shapash.explainer.smart_explainer import SmartExplainer
 
-# Load test data
-test_data_path = '/mnt/data/Call Center Data 2022 - 2024.csv'
-test_data = pd.read_csv(test_data_path)
+def load_model(file):
+    with open(file, 'rb') as f:
+        return pickle.load(f)
 
-# Prepare the data
-test_data = test_data.dropna()  # Drop any rows with missing values
+def determine_model_type(model):
+    if is_classifier(model):
+        return "classifier"
+    elif is_regressor(model):
+        return "regressor"
+    else:
+        return "unknown"
 
-# Encode categorical variables
-label_encoders = {}
-for column in test_data.select_dtypes(include=['object']).columns:
-    label_encoders[column] = LabelEncoder()
-    test_data[column] = label_encoders[column].fit_transform(test_data[column])
+def get_suitable_explainers(model_type):
+    if model_type == "classifier":
+        return ["SHAP", "LIME", "Shapash"]
+    elif model_type == "regressor":
+        return ["SHAP", "LIME", "Shapash"]
+    else:
+        return []
 
-# Binarize 'First Call Resolution (FCR %)' for classification
-y_class = test_data['First Call Resolution (FCR %)']
-binarizer = Binarizer(threshold=y_class.median()).fit(y_class.values.reshape(-1, 1))
-y_class = binarizer.transform(y_class.values.reshape(-1, 1)).ravel()
+def explain_model(model, X, explainer_choice):
+    if explainer_choice == "SHAP":
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(X)
+        st.pyplot(shap.summary_plot(shap_values, X))
+    elif explainer_choice == "LIME":
+        explainer = lime.lime_tabular.LimeTabularExplainer(X.values, feature_names=X.columns)
+        exp = explainer.explain_instance(X.iloc[0], model.predict_proba)
+        st.write(exp.as_list())
+    elif explainer_choice == "Shapash":
+        xpl = SmartExplainer(model=model)
+        xpl.compile(x=X)
+        st.write(xpl.to_pandas())
 
-# Split into training and testing sets for classification
-X = test_data.drop(columns=['First Call Resolution (FCR %)', 'CSAT (%)'])
-X_train_class, X_test_class, y_train_class, y_test_class = train_test_split(X, y_class, test_size=0.2, random_state=42)
+st.title("Model Explainer App")
 
-# Train a RandomForest model (classifier)
-rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
-rf_classifier.fit(X_train_class, y_train_class)
+uploaded_file = st.file_uploader("Choose a .pkl model file", type="pkl")
 
-# Save the classifier model
-classifier_model_path = '/mnt/data/rf_classifier_model.pkl'
-with open(classifier_model_path, 'wb') as f:
-    pickle.dump(rf_classifier, f)
+if uploaded_file is not None:
+    model = load_model(uploaded_file)
+    model_type = determine_model_type(model)
+    st.write(f"Detected model type: {model_type}")
 
-# Split the data into features and target for regression
-y_reg = test_data['CSAT (%)']
-X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(X, y_reg, test_size=0.2, random_state=42)
-
-# Train a RandomForest model (regressor)
-rf_regressor = RandomForestRegressor(n_estimators=100, random_state=42)
-rf_regressor.fit(X_train_reg, y_train_reg)
-
-# Save the regressor model
-regressor_model_path = '/mnt/data/rf_regressor_model.pkl'
-with open(regressor_model_path, 'wb') as f:
-    pickle.dump(rf_regressor, f)
-
-classifier_model_path, regressor_model_path
+    suitable_explainers = get_suitable_explainers(model_type)
+    
+    if suitable_explainers:
+        explainer_choice = st.selectbox("Choose an explainer", suitable_explainers)
+        
+        # For demonstration, we're using a dummy dataset. 
+        # In a real scenario, you'd need to provide the actual data used to train the model.
+        X = pd.DataFrame(np.random.rand(100, 5), columns=['feature1', 'feature2', 'feature3', 'feature4', 'feature5'])
+        
+        if st.button("Explain Model"):
+            explain_model(model, X, explainer_choice)
+    else:
+        st.write("No suitable explainers found for this model type.")
