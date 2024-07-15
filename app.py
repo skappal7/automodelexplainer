@@ -7,10 +7,13 @@ import shap
 import lime
 import lime.lime_tabular
 from shapash.explainer.smart_explainer import SmartExplainer
+import io
 
 def load_model(file):
-    with open(file, 'rb') as f:
-        return pickle.load(f)
+    return pickle.load(file)
+
+def load_data(file):
+    return pd.read_csv(file)
 
 def determine_model_type(model):
     if is_classifier(model):
@@ -21,9 +24,7 @@ def determine_model_type(model):
         return "unknown"
 
 def get_suitable_explainers(model_type):
-    if model_type == "classifier":
-        return ["SHAP", "LIME", "Shapash"]
-    elif model_type == "regressor":
+    if model_type in ["classifier", "regressor"]:
         return ["SHAP", "LIME", "Shapash"]
     else:
         return []
@@ -44,23 +45,34 @@ def explain_model(model, X, explainer_choice):
 
 st.title("Model Explainer App")
 
-uploaded_file = st.file_uploader("Choose a .pkl model file", type="pkl")
+uploaded_model = st.file_uploader("Choose a .pkl model file", type="pkl")
+uploaded_data = st.file_uploader("Choose a CSV file with test data", type="csv")
 
-if uploaded_file is not None:
-    model = load_model(uploaded_file)
-    model_type = determine_model_type(model)
-    st.write(f"Detected model type: {model_type}")
+if uploaded_model is not None and uploaded_data is not None:
+    try:
+        model = load_model(uploaded_model)
+        data = load_data(uploaded_data)
+        
+        st.write("Data Preview:")
+        st.write(data.head())
+        
+        model_type = determine_model_type(model)
+        st.write(f"Detected model type: {model_type}")
 
-    suitable_explainers = get_suitable_explainers(model_type)
-    
-    if suitable_explainers:
-        explainer_choice = st.selectbox("Choose an explainer", suitable_explainers)
+        suitable_explainers = get_suitable_explainers(model_type)
         
-        # For demonstration, we're using a dummy dataset. 
-        # In a real scenario, you'd need to provide the actual data used to train the model.
-        X = pd.DataFrame(np.random.rand(100, 5), columns=['feature1', 'feature2', 'feature3', 'feature4', 'feature5'])
-        
-        if st.button("Explain Model"):
-            explain_model(model, X, explainer_choice)
-    else:
-        st.write("No suitable explainers found for this model type.")
+        if suitable_explainers:
+            explainer_choice = st.selectbox("Choose an explainer", suitable_explainers)
+            
+            # Assume all columns except the last one are features
+            X = data.iloc[:, :-1]
+            y = data.iloc[:, -1]
+            
+            if st.button("Explain Model"):
+                explain_model(model, X, explainer_choice)
+        else:
+            st.write("No suitable explainers found for this model type.")
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+else:
+    st.write("Please upload both a model file (.pkl) and a test data file (.csv) to proceed.")
