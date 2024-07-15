@@ -10,6 +10,7 @@ from shapash import SmartExplainer
 
 # Function to load model from UploadedFile
 def load_model(file):
+    file.seek(0)  # Reset file pointer to the beginning
     return pickle.load(file)
 
 # Function to identify model type
