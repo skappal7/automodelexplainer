@@ -6,7 +6,6 @@ import lime
 import lime.lime_tabular
 import matplotlib.pyplot as plt
 from shapash import SmartExplainer
-from explainable_ai import explainable_ai_function  # hypothetical library
 
 # Function to load model
 def load_model(file):
