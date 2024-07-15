@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import accuracy_score, mean_squared_error
 import shap
-import numpy as np
 
 class CustomUnpickler(pickle.Unpickler):
     def find_class(self, module, name):
@@ -14,6 +13,9 @@ class CustomUnpickler(pickle.Unpickler):
 
 class CustomTree:
     class Tree:
+        def __init__(self, *args, **kwargs):
+            pass
+        
         def __setstate__(self, state):
             self.__dict__.update(state)
             if 'missing_go_to_left' not in state:
@@ -43,7 +45,8 @@ def explain_model(model, X):
         shap_values = explainer.shap_values(X)
         if isinstance(shap_values, list):
             shap_values = shap_values[1]  # For binary classification
-        fig = shap.summary_plot(shap_values, X, plot_type="bar", show=False)
+        fig, ax = plt.subplots()
+        shap.summary_plot(shap_values, X, plot_type="bar", show=False)
         st.pyplot(fig)
     except Exception as e:
         st.write(f"Error in SHAP explanation: {str(e)}")
