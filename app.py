@@ -4,9 +4,23 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import accuracy_score, mean_squared_error
 import shap
+import numpy as np
+
+class CustomUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == "sklearn.tree._tree":
+            return getattr(CustomTree, name)
+        return super().find_class(module, name)
+
+class CustomTree:
+    class Tree:
+        def __setstate__(self, state):
+            self.__dict__.update(state)
+            if 'missing_go_to_left' not in state:
+                self.missing_go_to_left = None
 
 def load_model(file):
-    return pickle.load(file)
+    return CustomUnpickler(file).load()
 
 def load_data(file):
     return pd.read_csv(file)
@@ -14,7 +28,7 @@ def load_data(file):
 def evaluate_model(model, X, y):
     try:
         y_pred = model.predict(X)
-        if model._estimator_type == "classifier":
+        if hasattr(model, "classes_"):
             score = accuracy_score(y, y_pred)
             return f"Accuracy: {score:.4f}"
         else:
@@ -29,7 +43,8 @@ def explain_model(model, X):
         shap_values = explainer.shap_values(X)
         if isinstance(shap_values, list):
             shap_values = shap_values[1]  # For binary classification
-        st.pyplot(shap.summary_plot(shap_values, X, plot_type="bar"))
+        fig = shap.summary_plot(shap_values, X, plot_type="bar", show=False)
+        st.pyplot(fig)
     except Exception as e:
         st.write(f"Error in SHAP explanation: {str(e)}")
 
