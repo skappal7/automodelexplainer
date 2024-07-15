@@ -23,10 +23,13 @@ def identify_model_type(model):
 
 # Function to run SHAP
 def run_shap(model, X_test):
-    explainer = shap.Explainer(model)
-    shap_values = explainer(X_test)
-    shap.summary_plot(shap_values, X_test)
-    st.pyplot(plt)
+    try:
+        explainer = shap.Explainer(model, X_test)
+        shap_values = explainer(X_test)
+        shap.summary_plot(shap_values, X_test)
+        st.pyplot(plt)
+    except Exception as e:
+        st.error(f"An error occurred while running SHAP: {e}")
 
 # Function to run LIME
 def run_lime(model, X_test):
