@@ -1,57 +1,27 @@
 import streamlit as st
 import pickle
 import pandas as pd
-import numpy as np
-import shap
-import lime
-import lime.lime_tabular
-import matplotlib.pyplot as plt
-from shapash import SmartExplainer
 
 # Function to load model from UploadedFile
 def load_model(file):
-    file.seek(0)  # Reset file pointer to the beginning
-    return pickle.load(file)
-
-# Function to identify model type
-def identify_model_type(model):
-    if hasattr(model, 'predict_proba'):
-        return 'classifier'
-    elif hasattr(model, 'predict'):
-        return 'regressor'
-    else:
-        return 'unknown'
-
-# Function to run SHAP
-def run_shap(model, X_test):
     try:
-        explainer = shap.Explainer(model, X_test)
-        shap_values = explainer(X_test)
-        shap.summary_plot(shap_values, X_test)
-        st.pyplot(plt)
+        file.seek(0)  # Reset file pointer to the beginning
+        model = pickle.load(file)
+        st.success("Model loaded successfully!")
+        return model
     except Exception as e:
-        st.error(f"An error occurred while running SHAP: {e}")
+        st.error(f"An error occurred while loading the model: {e}")
+        return None
 
-# Function to run LIME
-def run_lime(model, X_test, y_test):
+# Function to load test data
+def load_test_data(file):
     try:
-        explainer = lime.lime_tabular.LimeTabularExplainer(X_test.values, mode='classification' if len(set(y_test)) > 2 else 'regression')
-        i = np.random.randint(0, X_test.shape[0])
-        exp = explainer.explain_instance(X_test.values[i], model.predict_proba if hasattr(model, 'predict_proba') else model.predict, num_features=10)
-        exp.as_pyplot_figure()
-        st.pyplot(plt)
+        data = pd.read_csv(file)
+        st.success("Test data loaded successfully!")
+        return data
     except Exception as e:
-        st.error(f"An error occurred while running LIME: {e}")
-
-# Function to run Shapash
-def run_shapash(model, X_test):
-    try:
-        xpl = SmartExplainer(model=model)
-        xpl.compile(x=X_test)
-        xpl.plot.features_importance()
-        st.pyplot(plt)
-    except Exception as e:
-        st.error(f"An error occurred while running Shapash: {e}")
+        st.error(f"An error occurred while loading the test data: {e}")
+        return None
 
 # Streamlit app
 st.title("Model Performance and Explainability Analyzer")
@@ -60,25 +30,34 @@ st.title("Model Performance and Explainability Analyzer")
 model_file = st.file_uploader("Upload the .pkl model file", type=["pkl"])
 test_data_file = st.file_uploader("Upload the test data file (CSV)", type=["csv"])
 
-if model_file and test_data_file:
+# Load model
+model = None
+if model_file:
     model = load_model(model_file)
-    test_data = pd.read_csv(test_data_file)
-    X_test = test_data.iloc[:, :-1]
-    y_test = test_data.iloc[:, -1]
+
+# Load test data
+test_data = None
+if test_data_file:
+    test_data = load_test_data(test_data_file)
+
+if model is not None and test_data is not None:
+    try:
+        X_test = test_data.iloc[:, :-1]
+        y_test = test_data.iloc[:, -1]
+        
+        st.write("Data preview:")
+        st.write(test_data.head())
+
+        model_type = "Unknown"
+        if hasattr(model, 'predict_proba'):
+            model_type = 'classifier'
+        elif hasattr(model, 'predict'):
+            model_type = 'regressor'
+        
+        st.write(f"Identified model type: {model_type}")
+
+        # Placeholder for explainer logic
+        st.write("Explainer logic would go here.")
     
-    model_type = identify_model_type(model)
-    st.write(f"Identified model type: {model_type}")
-
-    # Allow user to select an explainer library
-    explainer_choice = st.selectbox("Choose an explainer library", 
-                                    ["SHAP", "LIME", "Shapash"])
-
-    if st.button("Run Explainer"):
-        if explainer_choice == "SHAP":
-            run_shap(model, X_test)
-        elif explainer_choice == "LIME":
-            run_lime(model, X_test, y_test)
-        elif explainer_choice == "Shapash":
-            run_shapash(model, X_test)
-        else:
-            st.write("Please select a valid explainer library.")
+    except Exception as e:
+        st.error(f"An error occurred while processing the data or model: {e}")
