@@ -32,19 +32,25 @@ def run_shap(model, X_test):
         st.error(f"An error occurred while running SHAP: {e}")
 
 # Function to run LIME
-def run_lime(model, X_test):
-    explainer = lime.lime_tabular.LimeTabularExplainer(X_test.values, mode='classification')
-    i = np.random.randint(0, X_test.shape[0])
-    exp = explainer.explain_instance(X_test.values[i], model.predict_proba, num_features=10)
-    exp.as_pyplot_figure()
-    st.pyplot(plt)
+def run_lime(model, X_test, y_test):
+    try:
+        explainer = lime.lime_tabular.LimeTabularExplainer(X_test.values, mode='classification' if len(set(y_test)) > 2 else 'regression')
+        i = np.random.randint(0, X_test.shape[0])
+        exp = explainer.explain_instance(X_test.values[i], model.predict_proba if hasattr(model, 'predict_proba') else model.predict, num_features=10)
+        exp.as_pyplot_figure()
+        st.pyplot(plt)
+    except Exception as e:
+        st.error(f"An error occurred while running LIME: {e}")
 
 # Function to run Shapash
 def run_shapash(model, X_test):
-    xpl = SmartExplainer(model=model)
-    xpl.compile(x=X_test)
-    xpl.plot.features_importance()
-    st.pyplot(plt)
+    try:
+        xpl = SmartExplainer(model=model)
+        xpl.compile(x=X_test)
+        xpl.plot.features_importance()
+        st.pyplot(plt)
+    except Exception as e:
+        st.error(f"An error occurred while running Shapash: {e}")
 
 # Streamlit app
 st.title("Model Performance and Explainability Analyzer")
@@ -70,7 +76,7 @@ if model_file and test_data_file:
         if explainer_choice == "SHAP":
             run_shap(model, X_test)
         elif explainer_choice == "LIME":
-            run_lime(model, X_test)
+            run_lime(model, X_test, y_test)
         elif explainer_choice == "Shapash":
             run_shapash(model, X_test)
         else:
