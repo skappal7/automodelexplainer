@@ -8,6 +8,7 @@ import lime
 import lime.lime_tabular
 from shapash.explainer.smart_explainer import SmartExplainer
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
 def load_model(file):
     try:
@@ -17,20 +18,25 @@ def load_model(file):
             return model_dict
         
         if isinstance(model_dict, dict) and 'estimators_' in model_dict:
-            if 'classes_' in model_dict:
-                new_model = RandomForestClassifier()
-            else:
-                new_model = RandomForestRegressor()
+            is_classifier = 'classes_' in model_dict
+            base_estimator = DecisionTreeClassifier if is_classifier else DecisionTreeRegressor
+            new_model_class = RandomForestClassifier if is_classifier else RandomForestRegressor
             
-            new_model.n_estimators = len(model_dict['estimators_'])
-            new_model.estimators_ = model_dict['estimators_']
-            if 'classes_' in model_dict:
-                new_model.classes_ = model_dict['classes_']
+            new_estimators = []
+            for old_tree in model_dict['estimators_']:
+                new_tree = base_estimator()
+                new_tree.tree_ = old_tree.tree_
+                new_tree.n_features_ = old_tree.n_features_
+                new_tree.n_outputs_ = old_tree.n_outputs_
+                new_tree.n_classes_ = getattr(old_tree, 'n_classes_', None)
+                new_estimators.append(new_tree)
+            
+            new_model = new_model_class(n_estimators=len(new_estimators))
+            new_model.estimators_ = new_estimators
             new_model.n_features_in_ = model_dict['n_features_in_']
-            
-            for param in ['n_outputs_', 'n_classes_', 'max_features_']:
-                if param in model_dict:
-                    setattr(new_model, param, model_dict[param])
+            if is_classifier:
+                new_model.classes_ = model_dict['classes_']
+            new_model.n_outputs_ = model_dict.get('n_outputs_', 1)
             
             return new_model
         else:
@@ -62,7 +68,7 @@ def explain_model(model, X, explainer_choice):
         st.pyplot(shap.summary_plot(shap_values, X))
     elif explainer_choice == "LIME":
         explainer = lime.lime_tabular.LimeTabularExplainer(X.values, feature_names=X.columns)
-        exp = explainer.explain_instance(X.iloc[0], model.predict_proba)
+        exp = explainer.explain_instance(X.iloc[0], model.predict_proba if hasattr(model, 'predict_proba') else model.predict)
         st.write(exp.as_list())
     elif explainer_choice == "Shapash":
         xpl = SmartExplainer(model=model)
