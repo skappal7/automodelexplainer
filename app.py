@@ -1,17 +1,16 @@
 import streamlit as st
 import pickle
 import pandas as pd
+import numpy as np
 import shap
 import lime
 import lime.lime_tabular
 import matplotlib.pyplot as plt
 from shapash import SmartExplainer
 
-# Function to load model
+# Function to load model from UploadedFile
 def load_model(file):
-    with open(file, 'rb') as f:
-        model = pickle.load(f)
-    return model
+    return pickle.load(file)
 
 # Function to identify model type
 def identify_model_type(model):
@@ -31,7 +30,7 @@ def run_shap(model, X_test):
 
 # Function to run LIME
 def run_lime(model, X_test):
-    explainer = lime.lime_tabular.LimeTabularExplainer(X_test.values)
+    explainer = lime.lime_tabular.LimeTabularExplainer(X_test.values, mode='classification')
     i = np.random.randint(0, X_test.shape[0])
     exp = explainer.explain_instance(X_test.values[i], model.predict_proba, num_features=10)
     exp.as_pyplot_figure()
@@ -42,11 +41,6 @@ def run_shapash(model, X_test):
     xpl = SmartExplainer(model=model)
     xpl.compile(x=X_test)
     xpl.plot.features_importance()
-    st.pyplot(plt)
-
-# Function to run Explainable AI (hypothetical)
-def run_explainable_ai(model, X_test):
-    explainable_ai_function(model, X_test)
     st.pyplot(plt)
 
 # Streamlit app
@@ -67,7 +61,7 @@ if model_file and test_data_file:
 
     # Allow user to select an explainer library
     explainer_choice = st.selectbox("Choose an explainer library", 
-                                    ["SHAP", "LIME", "Shapash", "Explainable AI (hypothetical)"])
+                                    ["SHAP", "LIME", "Shapash"])
 
     if st.button("Run Explainer"):
         if explainer_choice == "SHAP":
@@ -76,7 +70,5 @@ if model_file and test_data_file:
             run_lime(model, X_test)
         elif explainer_choice == "Shapash":
             run_shapash(model, X_test)
-        elif explainer_choice == "Explainable AI (hypothetical)":
-            run_explainable_ai(model, X_test)
         else:
             st.write("Please select a valid explainer library.")
